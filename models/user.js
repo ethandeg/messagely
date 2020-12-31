@@ -30,8 +30,8 @@ class User {
     const date = new Date()
     const result = await db.query(
       `INSERT INTO users (username, password, first_name, last_name, phone, join_at, last_login_at)
-      VALUES ($1, $2, $3, $4, $5, $6) RETURNING username
-      `,[username, hashedPassword, first_name, last_name, phone, date, date])
+      VALUES ($1, $2, $3, $4, $5, current_timestamp, current_timestamp) RETURNING username
+      `,[username, hashedPassword, first_name, last_name, phone])
     const user = result.rows[0]
     if(user){
       const newUser = new User(username, password, first_name, last_name, phone, date, date)
@@ -100,13 +100,35 @@ class User {
 
   /** Return messages from this user.
    *
-   * [{id, to_user, body, sent_at, read_at}]
+   * [{id, to_username, body, sent_at, read_at}]
    *
    * where to_user is
    *   {username, first_name, last_name, phone}
    */
 
-  static async messagesFrom(username) { }
+  static async messagesFrom(username) { 
+    const results = await db.query(`
+                                    SELECT m.id, m.to_username, m.body, m.sent_at, m.read_at,
+                                            u.username, u.first_name, u.last_name, u.phone
+                                            FROM messages AS m
+                                            JOIN users AS u ON m.to_username = u.username
+                                            WHERE from_username = $1
+                                    `, [username])
+    
+    const messages = []
+    for(let result of results.rows){
+      let newObj = {
+        id: result.id,
+        body: result.body,
+        sent_at: result.sent_at,
+        read_at: result.read_at,
+        to_username: {username: result.to_username, firstName: result.first_name, lastName: result.last_name, phone: result.phone}
+      }
+      messages.push(newObj)
+    
+    }
+    return messages
+  }
 
   /** Return messages to this user.
    *
@@ -116,7 +138,31 @@ class User {
    *   {id, first_name, last_name, phone}
    */
 
-  static async messagesTo(username) { }
+  static async messagesTo(username) {
+    const results = await db.query(`
+                                    SELECT m.id, m.from_username, m.body, m.sent_at, m.read_at,
+                                            u.username, u.first_name, u.last_name, u.phone
+                                            FROM messages AS m
+                                            JOIN users AS u ON m.from_username = u.username
+                                            WHERE to_username = $1
+                                    `, [username])
+    
+    const messages = []
+    for(let result of results.rows){
+      let newObj = {
+        id: result.id,
+        body: result.body,
+        sent_at: result.sent_at,
+        read_at: result.read_at,
+        from_username: {username: result.from_username, firstName: result.first_name, lastName: result.last_name, phone: result.phone}
+      }
+      messages.push(newObj)
+    
+    }
+    return messages
+    
+
+   }
 }
 
 
